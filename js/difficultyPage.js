@@ -10,7 +10,7 @@ const M_CLEAR = 2
 
 // 対象の全ページに対し、データの取得を行う
 async function wapper(lv) {
-  const size = await getMaxLvPageNum(`${PLAY_DATA_URL}?page=0&lv=${lv}`);
+  const size = await getMaxLvPageNum(`${PLAY_DATA_URL}page=0&lv=${lv}`);
   if (size == -1){
     showMessage("曲一覧ページの最大数取得時にエラーが発生しました", false, true);
     return null;
@@ -18,21 +18,11 @@ async function wapper(lv) {
   let pagelist = Array.from({ length: size }, (_, i) => [i, lv]);
 
   const promises = pagelist.map(([page, level]) =>
-    whatever(`${PLAY_DATA_URL}?page=${page}&lv=${level}`)
+    whatever(`${PLAY_DATA_URL}page=${page}&lv=${level}`)
   );
 
   const s = (await Promise.all(promises)).flat();
 
-  // Lv50 特別処理。ポパクロ通常版とUPPERの区別がつかないので、力技で書き換え。先に取得したほうが通常版。
-  // TODO: おそらく、将来的に通常版とUPPERの間にページ区切りが入った場合にうまく動かなくなる。正式な対応が必要。
-  if (lv == 50){
-    for (let i = 0; i < s.length; i++) {
-      if(s[i]["song"] == "Popperz Chronicle"){
-        s[i]["song"] = "Popperz Chronicle A"
-        break
-      }
-    }
-  }
   return s
 }
 
@@ -49,7 +39,7 @@ async function loadCSVData(filepath) {
 // 返り値として、描いたクリアメダルの数の一覧を返す
 function drawIcons(ctx, data, mlist, icon, scoreicon, x, y, dx, dy, iconsize) {
   console.log("draw icons")
-  let drawcounts = Array(11).fill(0);
+  let drawcounts = Array(12).fill(0);
   for (let d of data) {
     if (isErrorMedalID(d["medal"])){
       continue;
@@ -125,7 +115,7 @@ async function createFullListImg(data, icon, scoreicon, target, ext, x, y, dx, d
   // canvasから画像を作成し、img要素を生成する
   showMessage("画像の変換中・・・", true);
   const imgElement = document.createElement('img');
-  imgElement.src = c.toDataURL('image/png');
+  imgElement.src = c.toDataURL('image/jpeg', 0.9);  // 画像が大きすぎるのでpng→jpgに変更
   return imgElement;
 }
 
@@ -138,7 +128,7 @@ function makeImgName(lv, mode, id) {
 
   let modestr = (mode == M_FULLCOMBO ? "fullcombo" : "clear");
   
-  return `${year}${month}${day}_${lv}_${modestr}${id}.png`;
+  return `${year}${month}${day}_${lv}_${modestr}${id}.jpg`;
 }
 
 // キャンバスの画像をダウンロードするボタンを追加する
@@ -170,7 +160,7 @@ async function main(lv, mode) {
     return;
   }
   showMessage("画像素材の読み込み中・・・", true);
-  let icon = await loadMedals(GITHUB_URL, mode == M_FULLCOMBO); // フルコンボ表の時はメダル画像に縁取りを付ける
+  let icon = await loadMedals(GITHUB_URL);
   let scoreicon = null;
   if (await getSessionStorage(DP_STORAGE_KEY.HAS_SCORE_RANK, () => false)) {
     scoreicon =  await loadRankMedals(GITHUB_URL);
@@ -249,7 +239,7 @@ async function allpage() {
   // クリア難易度表
   allpage_sub(M_CLEAR, "クリア難易度表", 46, 50)
   // フルコン難易度表
-  allpage_sub(M_FULLCOMBO, "フルコン難易度表", 45, 48)
+  allpage_sub(M_FULLCOMBO, "フルコン難易度表 → レベル改定・UPPERの表記変更に対応していません。", 45, 48)
 
   // オプション
   let t = document.createElement('h2');

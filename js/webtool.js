@@ -3,7 +3,7 @@
  * 特定のツール機能に依存しない一般的な機能だけを管理する
  */
 
-const MEDAL_IMAGE_URL = "https://eacache.s.konaminet.jp/game/popn/jamfizz/images/p/common/medal";
+const MEDAL_IMAGE_URL = "https://eacache.s.konaminet.jp/game/popn/popn29/images/p/common/medal";
 const STATUS_URL = "https://p.eagate.573.jp/game/popn/jamfizz/playdata/index.html"
 const TOMO_URL = "https://p.eagate.573.jp/game/popn/jamfizz/p_friend/vs.html"
 const TOMO_VSLV_URL = "https://p.eagate.573.jp/game/popn/jamfizz/p_friend/vs_lv.html?version=0&category=0&keyword="
@@ -95,6 +95,7 @@ function getTomoDiffUrl(id, lv, page){
  * @returns 取得に失敗した場合は -1 を返す
  */
 async function getMaxLvPageNum(url) {
+  console.log("getMaxLvPageNum : " + url);
   let domparser = new DOMParser();
   // ページ末尾にある改ページ用のリストから、最大ページ番号を求める
   let pagelist = await fetch(url)
@@ -102,8 +103,10 @@ async function getMaxLvPageNum(url) {
     .then((text) => domparser.parseFromString(text, "text/html"))
     .then((doc) => doc.getElementById("s_page"))
   if (!pagelist || pagelist.children.length == 0) {
+    console.log("getMaxLvPageNum : error");
     return -1;
   }
+  console.log("getMaxLvPageNum : " + pagelist.children.length);
   return pagelist.children.length;
 }
 
@@ -138,17 +141,18 @@ async function loadImage(src) {
 // メダルのURLを元にメダル番号を振る
 function medalurlToInt(murl) {
   const MEDAL_ID = {
-    "a": 11,
-    "b": 10,
-    "c": 9,
-    "d": 8,
-    "e": 7,
-    "f": 6,
-    "g": 5,
-    "h": 3,
+    "a": 12, // 金
+    "b": 11, // 銀★
+    "c": 10,
+    "d": 9,
+    "e": 8,  // 銅★
+    "f": 7,
+    "g": 6,
+    "h": 3,  // 黒★
     "i": 2,
     "j": 1,
-    "k": 4,
+    "k": 4,  // 緑
+    "l": 5,  // オレンジ
     "none": ERROR_MEDAL_ID,
   };
   let alp = murl.replace(`${MEDAL_IMAGE_URL}/meda_`, "").replace(".png", "")
@@ -159,10 +163,14 @@ function medalurlToInt(murl) {
 // Note: 未クリアだとAA以上にならない仕様があるため、スコアから計算して出してはいけない
 function rankurlToInt(murl) {
   const MEDAL_ID = {
-    "s": 8,
-    "a3": 7,
-    "a2": 6,
-    "a1": 5,
+    "s_plus": 12,
+    "s": 11,
+    "a3": 10,
+    "a2_plus": 9,
+    "a2": 8,
+    "a1_plus": 7,
+    "a1": 6,
+    "b_plus": 5,
     "b": 4,
     "c": 3,
     "d": 2,
@@ -189,47 +197,43 @@ function medalIDsToImg(rank, medal, githuburl) {
   if (isErrorMedalID(rank) || isErrorMedalID(medal)) {
     return "";
   }
-  return `<img src="${githuburl}/icon/s_${rank}.png" height="32px"><img src="${githuburl}/c_icon/c_${medal}.png" height="32px"></img>`
+  return `<img src="${githuburl}/icon/s_${rank}.png" height="32px"><img src="${githuburl}/icon/c_${medal}.png" height="32px"></img>`
+}
+
+const MEDAL_IDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+const RANK_MEDAL_IDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+
+/**
+ * 画像を非同期で読み込む共通ヘルパー
+ * @param {string} src 画像URL
+ * @returns {Promise<HTMLImageElement>}
+ */
+async function loadImage(src) {
+  const img = new Image();
+  img.src = src;
+  img.crossOrigin = "anonymous"; // 画像ダウンロード用
+  await img.decode();
+  return img;
 }
 
 /**
  * 結果用メダル画像を読み込む
- * @param {*} baseurl メダル画像を保存している基準URL (通常は、このツールが入っているGithub PagesのURL)
- * @param {*} hasline メダルに縁取りがあるものを使うか
- * @returns 
+ * @param {string} baseurl メダル画像を保存している基準URL (通常は、このツールが入っているGithub PagesのURL)
+ * @returns {Promise<HTMLImageElement[]>}
  */
-function loadMedals(baseurl, hasline){
-  let iconbasename = "c_icon"
-  if (hasline){
-    iconbasename = "icon"
-  }
-  async function load(id){
-      let src = baseurl + "/" + iconbasename + "/c_" + id + ".png";
-      const img = new Image()
-      img.src = src
-      img.crossOrigin = "anonymous"; // 画像ダウンロード用
-      await img.decode()
-      return img
-  }
-  let list = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
-  return Promise.all(list.map(id => load(id)))
+function loadMedals(baseurl) {
+  return Promise.all(
+    MEDAL_IDS.map(id => loadImage(`${baseurl}/icon/c_${id}.png`))
+  );
 }
 
 /**
  * クリアランク用メダル画像を読み込む
- * @param {*} baseurl メダル画像を保存している基準URL (通常は、このツールが入っているGithub PagesのURL)
- * @returns 
+ * @param {string} baseurl メダル画像を保存している基準URL (通常は、このツールが入っているGithub PagesのURL)
+ * @returns {Promise<HTMLImageElement[]>}
  */
-function loadRankMedals(baseurl){
-  let iconbasename = "icon"
-  async function load(id){
-      let src = baseurl + "/" + iconbasename + "/s_" + id + ".png";
-      const img = new Image()
-      img.src = src
-      img.crossOrigin = "anonymous"; // 画像ダウンロード用
-      await img.decode()
-      return img
-  }
-  let list = [1, 2, 3, 4, 5, 6, 7, 8]
-  return Promise.all(list.map(id => load(id)))
+function loadRankMedals(baseurl) {
+  return Promise.all(
+    RANK_MEDAL_IDS.map(id => loadImage(`${baseurl}/icon/s_${id}.png`))
+  );
 }
