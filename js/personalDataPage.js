@@ -1,5 +1,6 @@
-const PLAY_DATA_URL = "https://p.eagate.573.jp/game/popn/jamfizz/playdata/mu_lv.html"
+const PLAY_DATA_URL = "https://p.eagate.573.jp/game/popn/popn29/playdata/mu_lv.html?version=-1&bemani=0&category=0&keyword=&sort=&sort_type=up&"
 const GITHUB_URL = "https://wanau-ynw.github.io/Bookmarklet"
+// const GITHUB_URL = "https://ynws.github.io/Bookmarklet"
 
 const PD_STORAGE_KEY = {
     PERSONAL_DATA: "personal_data",
@@ -10,11 +11,11 @@ const PD_STORAGE_KEY = {
 async function whatever(url) {
   console.log("load url : " + url)
   let domparser = new DOMParser();
-  // スコア情報テーブルを探す
+
   let tables = await fetch(url)
     .then(resToText)
     .then((text) => domparser.parseFromString(text, "text/html"))
-    .then((doc) => doc.querySelectorAll(".mu_list_table"))
+    .then((doc) => doc.querySelectorAll(".mu_list_lv_table"))  // ← クラス名変更
 
   if (tables.length != 1) {
     console.log("table not found : " + url)
@@ -23,18 +24,19 @@ async function whatever(url) {
   }
   let tableRows = tables[0].querySelectorAll("li")
 
-  // テーブルの各列から保存したい要素を抽出する。
   return Array.from(tableRows)
-    .filter((li) => li.firstElementChild.className === "col_music_lv")  // 曲データだけ抽出
+    .filter((li) => !li.classList.contains("st_th"))  // ← ヘッダー行を除外
     .map((li) => [
-      li.children[0].firstElementChild.textContent,
-      li.querySelector('.col_music_lv div:nth-of-type(1)').textContent,
-      parseInt(li.children[3].textContent.trim()),
-      medalurlToInt(li.children[3].firstChild.src),
-      li.children[3].children.length >= 2 ? rankurlToInt(li.children[3].children[1].src) : getErrorMedalID(),
+      li.children[0].querySelector("a").textContent.trim(),          // 曲名
+      li.children[0].querySelector("p:nth-of-type(1)").textContent,  // ジャンル (1つ目の<p>)
+      parseInt(li.children[3].querySelector("p").textContent.trim()), // スコア (<p>から取得)
+      medalurlToInt(li.children[3].querySelector("img:nth-of-type(1)").src),  // メダル
+      li.children[3].querySelector("img:nth-of-type(2)")
+        ? rankurlToInt(li.children[3].querySelector("img:nth-of-type(2)").src)
+        : getErrorMedalID(),  // ランク
     ])
     .map(([song, genre, score, medal, rank]) => {
-      return { song, genre, score, medal, rank};
+      return { song, genre, score, medal, rank };
     });
 }
 
@@ -48,7 +50,7 @@ async function wapper_personal() {
   const s = [];
   for (let lv = 40; lv <= 50; lv++) {
     await showMessage(`Lv${lv} データ取得開始`);
-    const size = await getMaxLvPageNum(`${PLAY_DATA_URL}?page=0&lv=${lv}`);
+    const size = await getMaxLvPageNum(`${PLAY_DATA_URL}page=0&lv=${lv}`);
     if (size == -1) {
       await showMessage("曲一覧ページの最大数取得時にエラーが発生しました", false, true);
       return null;
@@ -58,7 +60,7 @@ async function wapper_personal() {
     let results = [];
     await showMessage(`Lv${lv} 0/${size}`);
     for (let [page, level] of pagelist) {
-      const result = await whatever(`${PLAY_DATA_URL}?page=${page}&lv=${level}`);
+      const result = await whatever(`${PLAY_DATA_URL}page=${page}&lv=${level}`);
       results.push(...result); // 配列の要素を展開してpush
       await replaceLastMessage(`Lv${lv} ${page+1}/${size}`);
       await sleep(1000);
@@ -84,8 +86,8 @@ function calcPersonalData(data) {
     lvSongCount[lv] = lvdata.data.length;
     lvPlayCount[lv] = 0;
     lvScoreSum[lv] = 0;
-    lvMedalCount[lv] = Array(11+1).fill(0);
-    lvRankCount[lv] = Array(8+1).fill(0);
+    lvMedalCount[lv] = Array(12+1).fill(0);
+    lvRankCount[lv] = Array(12+1).fill(0);
 
     lvdata.data.forEach(d => {
       // 未プレイ曲スキップ
@@ -156,9 +158,9 @@ async function refreshMusicList(lv=null, medalmode=null, medalid=null, nomedal=f
     t.innerHTML += ` / レベル条件${lv}`;
   }
   if (medalmode == "medal") {
-    t.innerHTML += ` / クリアメダル条件:<img src="${GITHUB_URL}/c_icon/c_${medalid}.png" height="32px" _pageexpand_="32"></img>`;
+    t.innerHTML += ` / クリアメダル条件:<img src="${GITHUB_URL}/icon/c_${medalid}.png" height="32px" _pageexpand_="32"></img>`;
   } else if (medalmode == "rank") {
-    t.innerHTML += ` / クリアランク条件:<img src="${GITHUB_URL}/c_icon/s_${medalid}.png" height="32px" _pageexpand_="32"></img>`;
+    t.innerHTML += ` / クリアランク条件:<img src="${GITHUB_URL}/icon/s_${medalid}.png" height="32px" _pageexpand_="32"></img>`;
   }
   if(nomedal){
     t.innerHTML += ` / 未プレイ`;
@@ -229,12 +231,12 @@ function appendGraphBase(title, id) {
 
 // グラフの再描画
 async function refreshGraphImage(target, calcdata) {
-  let labels = ["黒●", "黒◆", "黒★", "緑●", "銅●", "銅◆", "銅★", "銀〇", "銀◇", "銀☆", "金☆"];
-  let colors = ["#000000", "#202020", "#404040", "#00a000", "#6E2A13", "#8E4A33", "#aE6A53", "#808080", "#a0a0a0", "#c0c0c0", "#c0c000"];
+  let labels = ["黒●", "黒◆", "黒★", "緑●", "橙●", "銅●", "銅◆", "銅★", "銀〇", "銀◇", "銀☆", "金☆"];
+  let colors = ["#111133", "#222244", "#444466", "#00a000", "#FF6D00", "#6E2A13", "#8E4A33", "#aE6A53", "#808080", "#a0a0a0", "#c0c0c0", "#c0c000"];
   let data = calcdata.lvMedalCount;
   if (target === "rank") {
-    labels = ["E", "D", "C", "B", "A", "AA", "AAA", "S"];
-    colors = ["#71588f", "#4198af", "#89a54e", "#db843d", "#f8b1df", "#ef637e", "#da163e", "#c0c000"];
+    labels = ["E", "D", "C", "B", "B+", "A", "A+", "AA", "AA+", "AAA", "S", "S+"];
+    colors = ["#71588f", "#4198af", "#89a54e", "#db843d", "#EA6509", "#f8b1df", "#ef637e", "#c71b3eff", "#D2042D", "#800020", "#b0b000", "#E8E810"];
     data = calcdata.lvRankCount;
   }
   let percentMode = await getSessionStorage(PD_STORAGE_KEY.GRAPH_MODE_PERCENT, () => false);
@@ -567,9 +569,9 @@ async function personal_datapage(mainpagecallback) {
   addPersonalDatapageTopButton(calcdata, mainpagecallback);
   // 各種グラフ
   appendGraphBase("クリアメダル分布と平均スコア", "medal");
-  createDataTable("クリアメダル一覧", "medal", `${GITHUB_URL}/c_icon/c_`, calcdata.lvMedalCount, 11, calcdata.lvSongCount);
+  createDataTable("クリアメダル一覧", "medal", `${GITHUB_URL}/icon/c_`, calcdata.lvMedalCount, 12, calcdata.lvSongCount);
   appendGraphBase("クリアランク分布と平均スコア", "rank");
-  createDataTable("クリアランク一覧", "rank", `${GITHUB_URL}/c_icon/s_`, calcdata.lvRankCount, 8, calcdata.lvSongCount);
+  createDataTable("クリアランク一覧", "rank", `${GITHUB_URL}/icon/s_`, calcdata.lvRankCount, 12, calcdata.lvSongCount);
   // 平均スコア表
   createScoreTable(calcdata.lvScoreAve, calcdata.lvPlayCount);
   // 曲一覧
