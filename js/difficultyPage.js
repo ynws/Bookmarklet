@@ -239,7 +239,7 @@ async function allpage() {
   // クリア難易度表
   allpage_sub(M_CLEAR, "クリア難易度表", 46, 50)
   // フルコン難易度表
-  allpage_sub(M_FULLCOMBO, "フルコン難易度表 → レベル改定・UPPERの表記変更に対応していません。", 45, 48)
+  allpage_sub(M_FULLCOMBO, "フルコン難易度表", 45, 48)
 
   // オプション
   let t = document.createElement('h2');
